@@ -21,6 +21,7 @@ GymFlow is a **tablet-first Flutter + Firebase application** for gym owners/admi
 ### 3) Tablet Check-in Dashboard
 - Large touch-friendly card grid (photo + name).
 - Real-time search by name or phone.
+- Case-insensitive name lookup uses normalized `name_lower`.
 - Tap member card to check in instantly.
 - Check-in success animated overlay.
 
@@ -55,6 +56,26 @@ GymFlow is a **tablet-first Flutter + Firebase application** for gym owners/admi
 - Indexed Firestore queries.
 - Search + limited query windows.
 - Grid UI optimized for tablets.
+
+### Firestore Search Pattern (Case-Insensitive Prefix)
+
+Each member stores a normalized field:
+
+```json
+{
+  "name": "Suraj",
+  "name_lower": "suraj"
+}
+```
+
+Search query pattern:
+
+```dart
+.where('name_lower', isGreaterThanOrEqualTo: query.toLowerCase())
+.where('name_lower', isLessThanOrEqualTo: '${query.toLowerCase()}\\uf8ff')
+```
+
+This is the standard Firestore workaround for case-insensitive prefix search.
 
 ### 10) Optional Future Scope
 - QR code check-in.
@@ -105,6 +126,7 @@ Collections:
 ```json
 {
   "name": "John Doe",
+  "name_lower": "john doe",
   "profilePhotoUrl": "https://...",
   "phoneNumber": "+1...",
   "plan": "monthly",

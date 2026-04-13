@@ -32,6 +32,7 @@ class Member {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'name_lower': name.trim().toLowerCase(),
       'profilePhotoUrl': profilePhotoUrl,
       'phoneNumber': phoneNumber,
       'plan': plan.name,

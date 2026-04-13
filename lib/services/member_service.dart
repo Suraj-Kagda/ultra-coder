@@ -13,7 +13,7 @@ class MemberService {
   CollectionReference<Map<String, dynamic>> get _members => _firestore.collection('members');
 
   Stream<List<Member>> watchMembers({String branchId = 'main', int limit = 100, DocumentSnapshot? startAfter}) {
-    Query<Map<String, dynamic>> query = _members.where('branchId', isEqualTo: branchId).orderBy('name').limit(limit);
+    Query<Map<String, dynamic>> query = _members.where('branchId', isEqualTo: branchId).orderBy('name_lower').limit(limit);
     if (startAfter != null) {
       query = query.startAfterDocument(startAfter);
     }
@@ -31,8 +31,11 @@ class MemberService {
     final normalized = query.toLowerCase();
     final snapshot = await _members
         .where('branchId', isEqualTo: branchId)
-        .orderBy('name')
-        .startAt([normalized]).endAt(['$normalized\uf8ff']).limit(50).get();
+        .orderBy('name_lower')
+        .where('name_lower', isGreaterThanOrEqualTo: normalized)
+        .where('name_lower', isLessThanOrEqualTo: '$normalized\uf8ff')
+        .limit(50)
+        .get();
     return snapshot.docs.map((doc) => Member.fromMap(doc.id, doc.data())).toList();
   }
 
