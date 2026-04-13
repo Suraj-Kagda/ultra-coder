@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /members/{memberId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /attendance_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /memberships/{membershipId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /analytics_daily/{dayKey} {
+      allow read, write: if isAdmin();
+    }
+
+    match /member_stats/{memberId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
