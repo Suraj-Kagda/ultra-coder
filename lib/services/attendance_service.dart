@@ -10,6 +10,8 @@ class AttendanceService {
 
   CollectionReference<Map<String, dynamic>> get _logs => _firestore.collection('attendance_logs');
   CollectionReference<Map<String, dynamic>> get _members => _firestore.collection('members');
+  CollectionReference<Map<String, dynamic>> get _analyticsDaily => _firestore.collection('analytics_daily');
+  CollectionReference<Map<String, dynamic>> get _memberStats => _firestore.collection('member_stats');
 
   String _dayKey(DateTime date) => DateFormat('yyyy-MM-dd').format(date);
   String _docDayKey(DateTime date) => DateFormat('yyyyMMdd').format(date);
@@ -40,6 +42,21 @@ class AttendanceService {
     }
 
     await _members.doc(member.id).update({'lastCheckInAt': Timestamp.fromDate(now)});
+    await _analyticsDaily.doc(dayKey).set({
+      'dayKey': dayKey,
+      'branchId': member.branchId,
+      'totalAttendance': FieldValue.increment(1),
+      'activeMembers': FieldValue.arrayUnion([member.id]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    await _memberStats.doc(member.id).set({
+      'memberId': member.id,
+      'memberName': member.name,
+      'branchId': member.branchId,
+      'totalCheckIns': FieldValue.increment(1),
+      'lastCheckInAt': Timestamp.fromDate(now),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
     return true;
   }
 

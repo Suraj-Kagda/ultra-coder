@@ -7,39 +7,40 @@ class AnalyticsService {
 
   final FirebaseFirestore _firestore;
 
-  CollectionReference<Map<String, dynamic>> get _logs => _firestore.collection('attendance_logs');
+  CollectionReference<Map<String, dynamic>> get _analyticsDaily => _firestore.collection('analytics_daily');
+  CollectionReference<Map<String, dynamic>> get _memberStats => _firestore.collection('member_stats');
   CollectionReference<Map<String, dynamic>> get _members => _firestore.collection('members');
 
   Future<Map<String, int>> dailyCounts({int days = 7}) async {
     final from = DateTime.now().subtract(Duration(days: days));
-    final snapshot = await _logs.where('checkedInAt', isGreaterThanOrEqualTo: Timestamp.fromDate(from)).get();
+    final fromKey = DateFormat('yyyy-MM-dd').format(from);
+    final snapshot = await _analyticsDaily.where('dayKey', isGreaterThanOrEqualTo: fromKey).orderBy('dayKey').get();
     final map = <String, int>{};
     for (final doc in snapshot.docs) {
-      final date = (doc.data()['checkedInAt'] as Timestamp).toDate();
+      final dayKey = doc.data()['dayKey'] as String? ?? '';
+      if (dayKey.isEmpty) continue;
+      final date = DateTime.tryParse(dayKey);
+      if (date == null) continue;
       final key = DateFormat('MM/dd').format(date);
-      map[key] = (map[key] ?? 0) + 1;
+      map[key] = (doc.data()['totalAttendance'] as num?)?.toInt() ?? 0;
     }
     return map;
   }
 
   Future<List<MapEntry<Member, int>>> mostActiveMembers({int top = 10}) async {
-    final logs = await _logs.get();
-    final counts = <String, int>{};
-    for (final doc in logs.docs) {
-      final memberId = doc.data()['memberId'] as String;
-      counts[memberId] = (counts[memberId] ?? 0) + 1;
-    }
+    final statsSnapshot = await _memberStats.orderBy('totalCheckIns', descending: true).limit(top).get();
+    if (statsSnapshot.docs.isEmpty) return [];
 
-    final ids = counts.keys.toList();
-    if (ids.isEmpty) return [];
+    final memberFutures = statsSnapshot.docs.map((doc) async {
+      final memberId = doc.id;
+      final count = (doc.data()['totalCheckIns'] as num?)?.toInt() ?? 0;
+      final memberDoc = await _members.doc(memberId).get();
+      if (!memberDoc.exists || memberDoc.data() == null) return null;
+      return MapEntry(Member.fromMap(memberDoc.id, memberDoc.data()!), count);
+    });
 
-    final membersSnapshot = await _members.where(FieldPath.documentId, whereIn: ids.take(30).toList()).get();
-    final members = {
-      for (final doc in membersSnapshot.docs) doc.id: Member.fromMap(doc.id, doc.data()),
-    };
-
-    final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(top).where((e) => members.containsKey(e.key)).map((e) => MapEntry(members[e.key]!, e.value)).toList();
+    final results = await Future.wait(memberFutures);
+    return results.whereType<MapEntry<Member, int>>().toList();
   }
 
   Future<List<Member>> inactiveMembers({int inactiveDays = 14}) async {

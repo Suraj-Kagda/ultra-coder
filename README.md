@@ -37,6 +37,7 @@ GymFlow is a **tablet-first Flutter + Firebase application** for gym owners/admi
 - 30-day trend chart.
 - Most active members.
 - Inactive members (no attendance in last X days).
+- Pre-aggregated daily counters (`analytics_daily`) and member counters (`member_stats`) for scale.
 
 ### 6) Membership Validity
 - Expired memberships are labeled with an `Expired` badge.
@@ -122,6 +123,8 @@ Collections:
 - `members/`
 - `attendance_logs/`
 - `memberships/`
+- `analytics_daily/`
+- `member_stats/`
 
 ### Example `members/{memberId}`
 ```json
@@ -146,6 +149,29 @@ Collections:
   "branchId": "main",
   "checkedInAt": "timestamp",
   "dayKey": "2026-04-13"
+}
+```
+
+### Example `analytics_daily/{YYYY-MM-DD}`
+```json
+{
+  "dayKey": "2026-04-13",
+  "branchId": "main",
+  "totalAttendance": 120,
+  "activeMembers": ["member_123", "member_456"],
+  "updatedAt": "timestamp"
+}
+```
+
+### Example `member_stats/{memberId}`
+```json
+{
+  "memberId": "member_123",
+  "memberName": "John Doe",
+  "branchId": "main",
+  "totalCheckIns": 248,
+  "lastCheckInAt": "timestamp",
+  "updatedAt": "timestamp"
 }
 ```
 
