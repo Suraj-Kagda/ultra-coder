@@ -54,7 +54,8 @@ GymFlow is a **tablet-first Flutter + Firebase application** for gym owners/admi
 
 ### 9) Performance
 - Indexed Firestore queries.
-- Search + limited query windows.
+- Member pagination with `limit(50)` + `startAfterDocument(...)`.
+- Lazy-loading infinite grid for large member bases (5,000+).
 - Grid UI optimized for tablets.
 
 ### Firestore Search Pattern (Case-Insensitive Prefix)

@@ -19,6 +19,29 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   String? successName;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    Future.microtask(() => ref.read(membersProvider.notifier).loadInitial());
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < 500) {
+      ref.read(membersProvider.notifier).loadMore();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
 
   Future<void> _checkIn(Member member) async {
     final ok = await ref.read(attendanceServiceProvider).checkIn(member);
@@ -46,7 +69,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final members = ref.watch(filteredMembersProvider);
+    final membersState = ref.watch(membersProvider);
     final dailyCount = ref.watch(attendanceServiceProvider).watchDailyCount();
 
     return Scaffold(
@@ -82,29 +105,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: TextField(
-                  onChanged: (value) => ref.read(memberSearchQueryProvider.notifier).state = value,
+                  onChanged: (value) => ref.read(membersProvider.notifier).setQuery(value),
                   decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search name or phone'),
                 ),
               ),
               Expanded(
-                child: members.when(
-                  data: (items) => GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.8,
-                    ),
-                    itemCount: items.length,
-                    itemBuilder: (_, i) {
-                      final member = items[i];
-                      return MemberCard(member: member, onTap: () => _checkIn(member));
-                    },
-                  ),
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('Failed: $e')),
-                ),
+                child: membersState.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : membersState.error != null
+                    ? Center(child: Text('Failed: ${membersState.error}'))
+                    : GridView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(12),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.8,
+                        ),
+                        itemCount: membersState.members.length + (membersState.isLoadingMore ? 1 : 0),
+                        itemBuilder: (_, i) {
+                          if (i >= membersState.members.length) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          final member = membersState.members[i];
+                          return MemberCard(member: member, onTap: () => _checkIn(member));
+                        },
+                      ),
               ),
             ],
           ),

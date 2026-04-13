@@ -21,18 +21,103 @@ final notificationServiceProvider = Provider<NotificationService>((ref) => Notif
 
 final authStateProvider = StreamProvider<User?>((ref) => ref.read(authServiceProvider).authStateChanges());
 
-final memberSearchQueryProvider = StateProvider<String>((_) => '');
-
-final memberListProvider = StreamProvider<List<Member>>((ref) {
-  return ref.read(memberServiceProvider).watchMembers(limit: 250);
-});
-
-final filteredMembersProvider = Provider<AsyncValue<List<Member>>>((ref) {
-  final query = ref.watch(memberSearchQueryProvider).toLowerCase();
-  final membersAsync = ref.watch(memberListProvider);
-
-  return membersAsync.whenData((members) {
-    if (query.isEmpty) return members;
-    return members.where((m) => m.name.toLowerCase().contains(query) || m.phoneNumber.contains(query)).toList();
+class MembersState {
+  const MembersState({
+    this.members = const [],
+    this.isLoading = false,
+    this.isLoadingMore = false,
+    this.hasMore = true,
+    this.query = '',
+    this.error,
   });
+
+  final List<Member> members;
+  final bool isLoading;
+  final bool isLoadingMore;
+  final bool hasMore;
+  final String query;
+  final Object? error;
+
+  MembersState copyWith({
+    List<Member>? members,
+    bool? isLoading,
+    bool? isLoadingMore,
+    bool? hasMore,
+    String? query,
+    Object? error = _sentinel,
+  }) {
+    return MembersState(
+      members: members ?? this.members,
+      isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      hasMore: hasMore ?? this.hasMore,
+      query: query ?? this.query,
+      error: identical(error, _sentinel) ? this.error : error,
+    );
+  }
+}
+
+const _sentinel = Object();
+
+class MembersNotifier extends StateNotifier<MembersState> {
+  MembersNotifier(this._service) : super(const MembersState());
+
+  final MemberService _service;
+  DocumentSnapshot<Map<String, dynamic>>? _lastDoc;
+  static const _pageSize = 50;
+
+  Future<void> loadInitial() async {
+    state = state.copyWith(isLoading: true, members: [], hasMore: true, error: null);
+    _lastDoc = null;
+    try {
+      if (state.query.trim().isNotEmpty) {
+        final results = await _service.searchMembers(state.query);
+        state = state.copyWith(
+          members: results,
+          isLoading: false,
+          isLoadingMore: false,
+          hasMore: false,
+        );
+        return;
+      }
+
+      final page = await _service.fetchMembersPage(limit: _pageSize);
+      _lastDoc = page.lastDoc;
+      state = state.copyWith(
+        members: page.members,
+        isLoading: false,
+        isLoadingMore: false,
+        hasMore: page.hasMore,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, isLoadingMore: false, error: e);
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoading || state.isLoadingMore || !state.hasMore || state.query.isNotEmpty) return;
+    state = state.copyWith(isLoadingMore: true, error: null);
+    try {
+      final page = await _service.fetchMembersPage(limit: _pageSize, startAfter: _lastDoc);
+      _lastDoc = page.lastDoc ?? _lastDoc;
+      state = state.copyWith(
+        members: [...state.members, ...page.members],
+        isLoadingMore: false,
+        hasMore: page.hasMore,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoadingMore: false, error: e);
+    }
+  }
+
+  Future<void> setQuery(String value) async {
+    final trimmed = value.trim();
+    if (trimmed == state.query) return;
+    state = state.copyWith(query: trimmed);
+    await loadInitial();
+  }
+}
+
+final membersProvider = StateNotifierProvider<MembersNotifier, MembersState>((ref) {
+  return MembersNotifier(ref.read(memberServiceProvider));
 });

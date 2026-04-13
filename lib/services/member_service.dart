@@ -12,6 +12,27 @@ class MemberService {
 
   CollectionReference<Map<String, dynamic>> get _members => _firestore.collection('members');
 
+  Future<MemberPage> fetchMembersPage({
+    String branchId = 'main',
+    int limit = 50,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    Query<Map<String, dynamic>> query = _members
+        .where('branchId', isEqualTo: branchId)
+        .orderBy('name_lower')
+        .limit(limit);
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    final snapshot = await query.get();
+    return MemberPage(
+      members: snapshot.docs.map((doc) => Member.fromMap(doc.id, doc.data())).toList(),
+      lastDoc: snapshot.docs.isEmpty ? null : snapshot.docs.last,
+      hasMore: snapshot.docs.length == limit,
+    );
+  }
+
   Stream<List<Member>> watchMembers({String branchId = 'main', int limit = 100, DocumentSnapshot? startAfter}) {
     Query<Map<String, dynamic>> query = _members.where('branchId', isEqualTo: branchId).orderBy('name_lower').limit(limit);
     if (startAfter != null) {
@@ -69,4 +90,16 @@ class MemberService {
     await batch.commit();
     return count;
   }
+}
+
+class MemberPage {
+  const MemberPage({
+    required this.members,
+    required this.lastDoc,
+    required this.hasMore,
+  });
+
+  final List<Member> members;
+  final DocumentSnapshot<Map<String, dynamic>>? lastDoc;
+  final bool hasMore;
 }
