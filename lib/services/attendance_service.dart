@@ -12,23 +12,32 @@ class AttendanceService {
   CollectionReference<Map<String, dynamic>> get _members => _firestore.collection('members');
 
   String _dayKey(DateTime date) => DateFormat('yyyy-MM-dd').format(date);
+  String _docDayKey(DateTime date) => DateFormat('yyyyMMdd').format(date);
 
   Future<bool> checkIn(Member member) async {
     if (member.isExpired) return false;
 
     final now = DateTime.now();
     final dayKey = _dayKey(now);
-    final existing = await _logs.where('memberId', isEqualTo: member.id).where('dayKey', isEqualTo: dayKey).limit(1).get();
-    if (existing.docs.isNotEmpty) return false;
-
-    await _logs.add(AttendanceLog(
+    final docId = '${member.id}_${_docDayKey(now)}';
+    final logRef = _logs.doc(docId);
+    final log = AttendanceLog(
       id: '',
       memberId: member.id,
       memberName: member.name,
       branchId: member.branchId,
       checkedInAt: now,
       dayKey: dayKey,
-    ).toMap());
+    ).toMap();
+
+    try {
+      await logRef.create(log);
+    } on FirebaseException catch (e) {
+      if (e.code == 'already-exists') {
+        return false;
+      }
+      rethrow;
+    }
 
     await _members.doc(member.id).update({'lastCheckInAt': Timestamp.fromDate(now)});
     return true;

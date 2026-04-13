@@ -30,7 +30,7 @@ GymFlow is a **tablet-first Flutter + Firebase application** for gym owners/admi
   - `date` (`dayKey`)
   - `time` (`checkedInAt`)
   - `memberId`
-- Duplicate check-ins prevented per member/day.
+- Duplicate check-ins prevented per member/day using deterministic log IDs: `attendance_logs/{memberId_YYYYMMDD}`.
 
 ### 5) Analytics
 - Daily attendance count.
@@ -137,7 +137,7 @@ Collections:
 }
 ```
 
-### Example `attendance_logs/{logId}`
+### Example `attendance_logs/{memberId_YYYYMMDD}`
 ```json
 {
   "memberId": "member_123",
