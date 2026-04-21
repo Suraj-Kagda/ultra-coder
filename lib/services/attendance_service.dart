@@ -23,6 +23,9 @@ class AttendanceService {
     final dayKey = _dayKey(now);
     final docId = '${member.id}_${_docDayKey(now)}';
     final logRef = _logs.doc(docId);
+    final memberRef = _members.doc(member.id);
+    final analyticsRef = _analyticsDaily.doc(dayKey);
+    final memberStatsRef = _memberStats.doc(member.id);
     final log = AttendanceLog(
       id: '',
       memberId: member.id,
@@ -33,31 +36,38 @@ class AttendanceService {
     ).toMap();
 
     try {
-      await logRef.create(log);
+      return await _firestore.runTransaction((tx) async {
+        final existing = await tx.get(logRef);
+        if (existing.exists) {
+          return false;
+        }
+
+        tx.set(logRef, log);
+        tx.update(memberRef, {'lastCheckInAt': Timestamp.fromDate(now)});
+        tx.set(analyticsRef, {
+          'dayKey': dayKey,
+          'branchId': member.branchId,
+          'totalAttendance': FieldValue.increment(1),
+          'activeMembers': FieldValue.arrayUnion([member.id]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        tx.set(memberStatsRef, {
+          'memberId': member.id,
+          'memberName': member.name,
+          'branchId': member.branchId,
+          'totalCheckIns': FieldValue.increment(1),
+          'lastCheckInAt': Timestamp.fromDate(now),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        return true;
+      });
     } on FirebaseException catch (e) {
-      if (e.code == 'already-exists') {
+      if (e.code == 'already-exists' || e.code == 'aborted') {
         return false;
       }
       rethrow;
     }
-
-    await _members.doc(member.id).update({'lastCheckInAt': Timestamp.fromDate(now)});
-    await _analyticsDaily.doc(dayKey).set({
-      'dayKey': dayKey,
-      'branchId': member.branchId,
-      'totalAttendance': FieldValue.increment(1),
-      'activeMembers': FieldValue.arrayUnion([member.id]),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    await _memberStats.doc(member.id).set({
-      'memberId': member.id,
-      'memberName': member.name,
-      'branchId': member.branchId,
-      'totalCheckIns': FieldValue.increment(1),
-      'lastCheckInAt': Timestamp.fromDate(now),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    return true;
   }
 
   Stream<int> watchDailyCount() {
