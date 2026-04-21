@@ -59,7 +59,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _importCsv() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
     if (result == null || result.files.single.bytes == null) return;
     final count = await ref.read(memberServiceProvider).importFromCsvBytes(result.files.single.bytes!);
     if (mounted) {
